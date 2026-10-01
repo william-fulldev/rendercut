@@ -1,10 +1,10 @@
 import sys
 from pathlib import Path
 
-# 1. Primero añadimos la carpeta 'bbdd' al sys.path
+# Primero añadimos la carpeta 'bbdd' al sys.path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-# 2. Después importamos los módulos
+# Después importamos los módulos
 import flet as ft
 from pelicula import Pelicula
 import gestor_peliculas as gp
@@ -20,7 +20,7 @@ def main(page: ft.Page):
     
     # Configuración de la ventana
     page.title = "Gestor de Películas"
-    page.window.width = 900
+    page.window.width = 1200
     page.window.height = 600
     page.padding = 20
     
@@ -37,7 +37,7 @@ def main(page: ft.Page):
     # Eventos / Funciones
 
     # Ver películas -----
-    def mostrar_vista_ver(e):
+    def mostrar_vista_ver(e=None):
         area_contenido.controls.clear()
         peliculas = gp.consultar_peli(conn, "")
         filas_pelis = []
@@ -51,7 +51,8 @@ def main(page: ft.Page):
                         ft.DataCell(ft.Text(f"{peli[3]} min")),  #Duracion
                         ft.DataCell(ft.Text(str(peli[4]))),  #Año
                         ft.DataCell(ft.Text(peli[5]))  #Director
-                    ]
+                    ],
+            on_select_change=lambda e, id=peli[0]: mostrar_vista_modificar(id_peli=id)
                 )
             )
         
@@ -115,12 +116,22 @@ def main(page: ft.Page):
         ])
         page.update()
 
-    # Modificar
-    def mostrar_vista_modificar(e):
+    # Modificar datos de una pelicula
+    def mostrar_vista_modificar(e=None, id_peli=None):
         area_contenido.controls.clear()
 
-        # Controles
-        txt_id = ft.TextField(label="ID a modificar", width=300, keyboard_type=ft.KeyboardType.NUMBER)
+        # Si e no es un evento de Flet (es un int o str), lo tratamos como id_peli
+        if id_peli is None and isinstance(e, ft.Control):
+            id_peli = e
+        valor_id_inicial = str(id_peli) if id_peli is not None else ""
+
+        # Controles para modificar los datos de una película
+        txt_id = ft.TextField(
+            label="ID a modificar",
+            value=valor_id_inicial,
+            width=300,
+            keyboard_type=ft.KeyboardType.NUMBER
+        )
         txt_titulo = ft.TextField(label="Título", width=300)
         txt_genero = ft.TextField(label="Género", width=300)
         txt_duracion = ft.TextField(label="Duración (min)", width=300, keyboard_type=ft.KeyboardType.NUMBER)
@@ -151,6 +162,10 @@ def main(page: ft.Page):
                 txt_mensaje.color = ft.Colors.RED_400
             page.update()
 
+        # Si valor_id_inicial no está vacío, llamar a cargar_datos_peli
+        if valor_id_inicial:
+            cargar_datos_peli()
+
         # Función para guardar la modificación
         def guardar_modificacion(e):
             if not all([txt_id.value, txt_titulo.value, txt_genero.value, txt_duracion.value, txt_anyo.value, txt_director.value]):
@@ -179,7 +194,8 @@ def main(page: ft.Page):
                 txt_mensaje.color = ft.Colors.RED_400
             finally:
                 page.update()
-
+        
+        # Controles para modificar una película
         area_contenido.controls.extend([
             ft.Text("Modificar Película", size=22, weight=ft.FontWeight.BOLD),
             txt_id,
@@ -189,6 +205,10 @@ def main(page: ft.Page):
             txt_mensaje
         ])
         page.update()
+
+        # Si se pasa un valor inicial, cargar los datos de la película
+        if valor_id_inicial:
+            cargar_datos_peli()
 
     # Eliminar
     def mostrar_vista_eliminar(e):
@@ -272,6 +292,9 @@ def main(page: ft.Page):
     )
 
     page.add(layout_principal)
+
+    # Cargar todas las películas al iniciar
+    mostrar_vista_ver()
 
 if __name__ == "__main__":
     ft.run(main)
