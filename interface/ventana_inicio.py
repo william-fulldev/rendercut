@@ -10,8 +10,6 @@ from pelicula import Pelicula
 import gestor_peliculas as gp
 import data_generator_db as dg
 
-
-
 def main(page: ft.Page):
     
     # Inicializar la base de datos y la conexión
@@ -120,8 +118,8 @@ def main(page: ft.Page):
     def mostrar_vista_modificar(e=None, id_peli=None):
         area_contenido.controls.clear()
 
-        # Si e no es un evento de Flet (es un int o str), lo tratamos como id_peli
-        if id_peli is None and isinstance(e, ft.Control):
+        # Si e es un ID (int o str), lo usamos como id_peli
+        if id_peli is None and isinstance(e, (int, str)):
             id_peli = e
         valor_id_inicial = str(id_peli) if id_peli is not None else ""
 
@@ -162,10 +160,6 @@ def main(page: ft.Page):
                 txt_mensaje.color = ft.Colors.RED_400
             page.update()
 
-        # Si valor_id_inicial no está vacío, llamar a cargar_datos_peli
-        if valor_id_inicial:
-            cargar_datos_peli()
-
         # Función para guardar la modificación
         def guardar_modificacion(e):
             if not all([txt_id.value, txt_titulo.value, txt_genero.value, txt_duracion.value, txt_anyo.value, txt_director.value]):
@@ -194,19 +188,73 @@ def main(page: ft.Page):
                 txt_mensaje.color = ft.Colors.RED_400
             finally:
                 page.update()
-        
-        # Controles para modificar una película
+
+        # Función para abrir el diálogo de confirmación de eliminación
+        def abrir_dialogo_eliminacion(e):
+            id_val = txt_id.value.strip()
+            if not id_val or not id_val.isdigit():
+                txt_mensaje.value = "Debes cargar los datos de una película primero."
+                txt_mensaje.color = ft.Colors.RED_400
+                page.update()
+                return
+
+            nombre_peli = txt_titulo.value if txt_titulo.value else f"ID {id_val}"
+
+            def confirmar_eliminacion(ev):
+                page.pop_dialog()
+                try:
+                    resultado = gp.eliminar_pelicula(conn, id_peli=int(id_val))
+                    if resultado > 0:
+                        mostrar_vista_ver()
+                    else:
+                        txt_mensaje.value = "No se encontró ninguna película con ese ID."
+                        txt_mensaje.color = ft.Colors.RED_400
+                        page.update()
+                except Exception as ex:
+                    txt_mensaje.value = f"Error al eliminar la película: {ex}"
+                    txt_mensaje.color = ft.Colors.RED_400
+                    page.update()
+
+            def cancelar_eliminacion(ev):
+                page.pop_dialog()
+
+            dialogo = ft.AlertDialog(
+                modal=True,
+                title=ft.Text("Confirmar eliminación"),
+                content=ft.Text(f"¿Estás seguro de que deseas eliminar la película '{nombre_peli}' (ID: {id_val})?"),
+                actions=[
+                    ft.TextButton("Cancelar", on_click=cancelar_eliminacion),
+                    ft.TextButton(
+                        "Eliminar", 
+                        on_click=confirmar_eliminacion, 
+                        style=ft.ButtonStyle(color=ft.Colors.RED_400)
+                    ),
+                ],
+                actions_alignment=ft.MainAxisAlignment.END
+            )
+            page.show_dialog(dialogo)
+
+        # Fila de botones de acción
+        fila_botones = ft.Row(
+            controls=[
+                ft.Button("Guardar cambios", on_click=guardar_modificacion, icon=ft.Icons.SAVE, color=ft.Colors.GREEN_400),
+                ft.Button("Eliminar película", on_click=abrir_dialogo_eliminacion, icon=ft.Icons.DELETE, color=ft.Colors.RED_400),
+            ],
+            spacing=10
+        )
+
+        # Añadimos los controles una sola vez
         area_contenido.controls.extend([
             ft.Text("Modificar Película", size=22, weight=ft.FontWeight.BOLD),
             txt_id,
             ft.Button("Cargar datos", on_click=cargar_datos_peli, icon=ft.Icons.DOWNLOAD),
             txt_titulo, txt_genero, txt_duracion, txt_anyo, txt_director,
-            ft.Button("Guardar cambios", on_click=guardar_modificacion, icon=ft.Icons.SAVE, color=ft.Colors.ORANGE_400),
+            fila_botones,
             txt_mensaje
         ])
         page.update()
 
-        # Si se pasa un valor inicial, cargar los datos de la película
+        # Si se abrió pasando un ID, cargamos los datos automáticamente
         if valor_id_inicial:
             cargar_datos_peli()
 
@@ -270,7 +318,7 @@ def main(page: ft.Page):
                 ft.Text("Gestor DDBB", size=18, weight=ft.FontWeight.BOLD),
                 txt_info_db,
                 ft.Divider(), # Linea divisoria horizontal
-                ft.Button("Ver películas", on_click=mostrar_vista_ver, width=180),
+                ft.Button("Lista de películas", on_click=mostrar_vista_ver, width=180),
                 ft.Button("Insertar película", width=180, on_click=mostrar_vista_insertar),
                 ft.Button("Modificar película", width=180, on_click=mostrar_vista_modificar),
                 ft.Button("Eliminar película", width=180, on_click=mostrar_vista_eliminar),
