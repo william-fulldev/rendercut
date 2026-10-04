@@ -8,7 +8,6 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 import flet as ft
 from pelicula import Pelicula
 import gestor_peliculas as gp
-import data_generator_db as dg
 
 def main(page: ft.Page):
     
