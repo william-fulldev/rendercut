@@ -9,9 +9,8 @@ from pelicula import Pelicula
 DB_PATH = Path(__file__).resolve().parent / "bbdd_peliculas.db"
 
 
-def establecer_conexion():
-    conn = sqlite3.connect(DB_PATH)
-    return conn
+def establecer_conexion(db_path=DB_PATH):
+    return sqlite3.connect(db_path)
 
 def crear_tablas(conn):
 
@@ -26,15 +25,15 @@ def crear_tablas(conn):
     cursor.execute(sql)
     conn.commit()
 
-
-def create_movie(conn, pelicula:Pelicula):
-    cursor = conn.cursor()
-    cursor.execute('''INSERT INTO peliculas 
-    (titulo, genero, duracion, anyo_estreno, director) VALUES (?,?,?,?,?)''',
-    (pelicula.titulo, pelicula.genero, pelicula.duracion,
-pelicula.anyo_estreno, pelicula.director))
-    conn.commit()
-    cursor.close()
+# Validacion y creacion de una pelicula
+def create_movie(conn, pelicula: Pelicula):
+    pelicula.validar()
+    with conn:
+        conn.execute(
+            "INSERT INTO peliculas (titulo, genero, duracion, anyo_estreno, director) VALUES (?,?,?,?,?)",
+            (pelicula.titulo.strip(), pelicula.genero.strip(), pelicula.duracion,
+            pelicula.anyo_estreno, pelicula.director.strip()),
+        )
 
 def cerrar_conexion(conn: sqlite3.Connection):
     if conn != None:
@@ -70,55 +69,72 @@ def consultar_peli_por_id(conn: sqlite3.Connection, id_peli: int):
     cursor.close()
     return resultado 
 
-def actualizar_peli(conn:sqlite3.Connection, pelicula:Pelicula):
-    if (conn == None):
-        conn=establecer_conexion()
-    cursor = conn.cursor()
-    cursor.execute('''UPDATE peliculas SET titulo = ?, genero = ?, duracion = ?, anyo_estreno = ?, director = ? WHERE id = ?''',
-    (pelicula.titulo, pelicula.genero, pelicula.duracion,
-pelicula.anyo_estreno, pelicula.director, pelicula.id))
-    conn.commit()
+# Validacion y actualizacion de una pelicula
+def actualizar_peli(conn: sqlite3.Connection, pelicula: Pelicula) -> int:
+    pelicula.validar()
+    with conn:
+        cur = conn.execute(
+            "UPDATE peliculas SET titulo=?, genero=?, duracion=?, anyo_estreno=?, director=? WHERE id=?",
+            (pelicula.titulo.strip(), pelicula.genero.strip(), pelicula.duracion,
+            pelicula.anyo_estreno, pelicula.director.strip(), pelicula.id),
+        )
+        return cur.rowcount
+
+# Pedir un entero de forma segura
+def pedir_entero(mensaje: str) -> int:
+    while True:
+        try:
+            return int(input(mensaje))
+        except ValueError:
+            print("⚠️ Introduce un número entero.")
+
+
+def pedir_pelicula(id_peli=None) -> Pelicula:
+    while True:
+        pelicula = Pelicula(
+            id_peli,
+            input("\nTítulo: "),
+            input("Género: "),
+            pedir_entero("Duración (min): "),
+            pedir_entero("Año de estreno: "),
+            input("Director: "),
+        )
+        try:
+            pelicula.validar()
+            return pelicula
+        except ValueError as ex:
+            print(f"⚠️ {ex} Inténtalo de nuevo.")
+
 
 def menu_principal(conn: sqlite3.Connection):
     while True:
-        option=input("\n¿Quieres añadir(1), eliminar(2), consultar(3) o actualizar(4) una pelicula?: \n")
-        if option=="1":
-            titulo=input("\nIntroduce el titulo de la pelicula: ")
-            genero=input("\nIntroduce el genero de la pelicula: ")
-            duracion=int(input("\nIntroduce la duracion de la pelicula: "))
-            anyo=int(input("\nIntroduce el año de la pelicula: "))
-            director=input("\nIntroduce el director de la pelicula: ")
-            pelicula=Pelicula(None, titulo, genero, duracion, anyo, director)
+        option = input("\n¿Quieres añadir(1), eliminar(2), consultar(3) o actualizar(4) una película? (otra tecla = salir): ")
+        if option == "1":
+            pelicula = pedir_pelicula()
             create_movie(conn, pelicula)
-            print(f"\n✅ Pelicula '{titulo}' insertada correctamente")
+            print(f"\n✅ Película '{pelicula.titulo}' insertada correctamente")
         elif option == "2":
-            criterio = input("\n¿Quieres eliminar por ID (1) o por Título (2)?: ")
+            criterio = input("\n¿Eliminar por ID (1) o por título (2)?: ")
             if criterio == "1":
-                id_eliminar = int(input("Introduce el ID de la película: "))
-                filas = eliminar_pelicula(conn, id_peli=id_eliminar)
+                filas = eliminar_pelicula(conn, id_peli=pedir_entero("ID de la película: "))
             else:
-                titulo_eliminar = input("Introduce el título de la película: ")
-                filas = eliminar_pelicula(conn, titulo=titulo_eliminar)
-
-            if filas > 0:
-                print(f"\n🗑️ Película eliminada correctamente")
+                filas = eliminar_pelicula(conn, titulo=input("Título de la película: "))
+            print("\n🗑️ Película eliminada correctamente" if filas > 0
+                else "\n⚠️ No se encontró ninguna película para eliminar")
+        elif option == "3":
+            titulo = input("\nTítulo a consultar: ")
+            resultados = consultar_peli(conn, titulo)
+            if resultados:
+                for r in resultados:
+                    print(f"[{r[0]}] {r[1]} ({r[4]}) - {r[2]}, {r[3]} min, dir. {r[5]}")
             else:
-                print("\n⚠️ No se encontró ninguna película para eliminar")
-
-        elif option=="3":
-            titulo=input("\nIntroduce el titulo de la pelicula que quieres consultar: ")
-            consultar_peli(conn, titulo)
-            print(f"\n🔍 Pelicula '{titulo}' consultada correctamente")
-        elif option=="4":
-            id_peli=int(input("\nIntroduce el id de la pelicula que quieres actualizar: "))
-            titulo=input("\nIntroduce el titulo de la pelicula: ")
-            genero=input("\nIntroduce el genero de la pelicula: ")
-            duracion=int(input("\nIntroduce la duracion de la pelicula: "))
-            anyo=int(input("\nIntroduce el año de la pelicula: "))
-            director=input("\nIntroduce el director de la pelicula: ")
-            pelicula=Pelicula(id_peli, titulo, genero, duracion, anyo, director)
-            actualizar_peli(conn, pelicula)
-            print(f"\n✅ Pelicula '{titulo}' actualizada correctamente")
+                print("\n⚠️ No se encontraron películas.")
+        elif option == "4":
+            pelicula = pedir_pelicula(pedir_entero("\nID de la película a actualizar: "))
+            if actualizar_peli(conn, pelicula) > 0:
+                print(f"\n✅ Película '{pelicula.titulo}' actualizada correctamente")
+            else:
+                print("\n⚠️ No existe ninguna película con ese ID")
         else:
-            print("\nFin del programa. Adios.")
+            print("\nFin del programa. Adiós.")
             break

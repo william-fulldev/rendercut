@@ -100,12 +100,12 @@ def main(page: ft.Page):
                 txt_mensaje.color = ft.Colors.GREEN_400
 
                 txt_titulo.value = txt_genero.value = txt_duracion.value = txt_anyo.value = txt_director.value = ""
-            except ValueError:
-                txt_mensaje.value = "Duración y Año deben ser números enteros."
+            except ValueError as ex:
+                txt_mensaje.value = str(ex) if "invalid literal" not in str(ex) else "Duración y Año deben ser números enteros."
                 txt_mensaje.color = ft.Colors.RED_400
             finally:
                 page.update()
-                
+        
         area_contenido.controls.extend([
             ft.Text("Insertar Película", size=22, weight=ft.FontWeight.BOLD),
             txt_titulo, txt_genero, txt_duracion, txt_anyo, txt_director,
@@ -177,14 +177,14 @@ def main(page: ft.Page):
                     anyo_estreno=int(txt_anyo.value),
                     director=txt_director.value
                 )
-                gp.actualizar_peli(conn, peli_actualizada)
-                txt_mensaje.value = f"Película con ID {txt_id.value} modificada correctamente"
-                txt_mensaje.color = ft.Colors.GREEN_400
+                if gp.actualizar_peli(conn, peli_actualizada) == 0:
+                    txt_mensaje.value = f"Película con ID {txt_id.value} modificada correctamente"
+                    txt_mensaje.color = ft.Colors.GREEN_400
             except ValueError:
                 txt_mensaje.value = "ID, Duración y Año deben ser números enteros."
                 txt_mensaje.color = ft.Colors.RED_400
             except Exception as ex:
-                txt_mensaje.value = f"Error al modificar película: {ex}"
+                txt_mensaje.value = str(ex) or f"Error al modificar película."
                 txt_mensaje.color = ft.Colors.RED_400
             finally:
                 page.update()
