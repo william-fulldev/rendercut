@@ -1,347 +1,100 @@
 import sys
 from pathlib import Path
 
-# Primero añadimos la carpeta 'bbdd' al sys.path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-# Después importamos los módulos
 import flet as ft
-from pelicula import Pelicula
+
 import gestor_peliculas as gp
+from interface import theme as th
+from interface import vistas
 
+# Función principal que se ejecuta al iniciar la aplicación
 def main(page: ft.Page):
-    
-    # Inicializar la base de datos y la conexión
-    conn = gp.establecer_conexion() # Conexión a la base de datos
-    gp.crear_tablas(conn) # Crear las tablas si no existen
-    
-    # Configuración de la ventana
+    # Conexión a la base de datos y creación de tablas
+    conn = gp.establecer_conexion()
+    gp.crear_tablas(conn)
+
+    # Configuración de la página (título, tema, fondo, tamaño)
     page.title = "Gestor de Películas"
-    page.window.width = 1200
-    page.window.height = 600
-    page.padding = 20
+    page.theme_mode = ft.ThemeMode.DARK
+    page.bgcolor = th.FONDO[0]
+    page.padding = 0
+    page.window.width = 1280
+    page.window.height = 780
+
+    # Contenedor principal y diccionario para el sidebar
+    contenido = ft.Container(expand=True, padding=ft.Padding(left=24, top=10, right=10, bottom=10))
+    nav_items = {}
+
+    # Función que pinta el sidebar
+    def pintar_nav(activo):
+        for clave, item in nav_items.items():
+            item.bgcolor = "#334A6BFF" if clave == activo else None
+            item.border = ft.Border.all(1, "#33FFFFFF") if clave == activo else None
+
+    # Función que navega entre vistas y actualiza el contenido
+    def ir(destino, id_peli=None):
+        if destino == "inicio":
+            contenido.content = vistas.vista_inicio(page, conn, ir)
+        elif destino == "biblioteca":
+            contenido.content = vistas.vista_biblioteca(page, conn, ir)
+        else:
+            contenido.content = vistas.vista_formulario(page, conn, ir, id_peli)
+        pintar_nav("biblioteca" if destino == "formulario" and id_peli else destino)
+        page.update()
+
+    # Función que crea cada item del sidebar
+    def item(clave, icono, texto):
+        c = ft.Container(
+            on_click=lambda e: ir(clave),
+            ink=True,
+            border_radius=14,
+            padding=ft.Padding(left=14, top=12, right=14, bottom=12),
+            content=ft.Row(
+                controls=[ft.Icon(icono, size=20, color=th.TEXTO), ft.Text(texto, color=th.TEXTO)]
+            ),
+        )
+        nav_items[clave] = c
+        return c
     
-    # Área principal donde se cambia el contenido
-    area_contenido = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO)
-
-    # Componente para mostrar la información de la BD
-    txt_info_db = ft.Text(
-        value="Estado BD: Conectado", 
-        size=12, 
-        color=ft.Colors.GREY_400
-    )
-
-    # Eventos / Funciones
-
-    # Ver películas -----
-    def mostrar_vista_ver(e=None):
-        area_contenido.controls.clear()
-        peliculas = gp.consultar_peli(conn, "")
-        filas_pelis = []
-        for peli in peliculas:
-            filas_pelis.append(
-                ft.DataRow(
-                    cells=[
-                        ft.DataCell(ft.Text(peli[0])),  #ID
-                        ft.DataCell(ft.Text(peli[1])),  #Titulo
-                        ft.DataCell(ft.Text(peli[2])),  #Genero
-                        ft.DataCell(ft.Text(f"{peli[3]} min")),  #Duracion
-                        ft.DataCell(ft.Text(str(peli[4]))),  #Año
-                        ft.DataCell(ft.Text(peli[5]))  #Director
-                    ],
-            on_select_change=lambda e, id=peli[0]: mostrar_vista_modificar(id_peli=id)
-                )
-            )
-        
-        tabla_pelis = ft.DataTable(
-            columns=[
-                ft.DataColumn(ft.Text("ID")),
-                ft.DataColumn(ft.Text("Titulo")),
-                ft.DataColumn(ft.Text("Genero")),
-                ft.DataColumn(ft.Text("Duracion")),
-                ft.DataColumn(ft.Text("Año")),
-                ft.DataColumn(ft.Text("Director")),
-            ],
-            rows=filas_pelis, # Línea divisoria horizontal
-        )
-        area_contenido.controls.extend([ft.Text("Películas", size=22), tabla_pelis])
-        page.update()
-
-    # Insertar películas
-    def mostrar_vista_insertar(e=None):
-        area_contenido.controls.clear()
-
-        txt_titulo = ft.TextField(label="Título", width=300)
-        txt_genero = ft.TextField(label="Genero", width=300)
-        txt_duracion = ft.TextField(label="Duración (min)", width=300, keyboard_type=ft.KeyboardType.NUMBER)
-        txt_anyo = ft.TextField(label="Año", width=300, keyboard_type=ft.KeyboardType.NUMBER)
-        txt_director = ft.TextField(label="Director", width=300)
-        txt_mensaje = ft.Text(size=14)
-        
-        def guardar_peli(e):
-            if not all([txt_titulo.value, txt_genero.value, txt_duracion.value, txt_anyo.value, txt_director.value]):
-                txt_mensaje.value = "Completa todos los campos"
-                txt_mensaje.color = ft.Colors.RED_400
-                page.update()
-                return
-
-            try:
-                nueva_peli = Pelicula(
-                    id=None,
-                    titulo=txt_titulo.value,
-                    genero=txt_genero.value,
-                    duracion=int(txt_duracion.value),
-                    anyo_estreno=int(txt_anyo.value),
-                    director=txt_director.value
-                )
-                gp.create_movie(conn, nueva_peli)
-                txt_mensaje.value = f"La película '{txt_titulo.value}' se ha guardado correctamente"
-                txt_mensaje.color = ft.Colors.GREEN_400
-
-                txt_titulo.value = txt_genero.value = txt_duracion.value = txt_anyo.value = txt_director.value = ""
-            except ValueError as ex:
-                txt_mensaje.value = str(ex) if "invalid literal" not in str(ex) else "Duración y Año deben ser números enteros."
-                txt_mensaje.color = ft.Colors.RED_400
-            finally:
-                page.update()
-        
-        area_contenido.controls.extend([
-            ft.Text("Insertar Película", size=22, weight=ft.FontWeight.BOLD),
-            txt_titulo, txt_genero, txt_duracion, txt_anyo, txt_director,
-            ft.Button("Guardar", on_click=guardar_peli, icon=ft.Icons.SAVE),
-            txt_mensaje
-        ])
-        page.update()
-
-    # Modificar datos de una pelicula
-    def mostrar_vista_modificar(e=None, id_peli=None):
-        area_contenido.controls.clear()
-
-        # Si e es un ID (int o str), lo usamos como id_peli
-        if id_peli is None and isinstance(e, (int, str)):
-            id_peli = e
-        valor_id_inicial = str(id_peli) if id_peli is not None else ""
-
-        # Controles para modificar los datos de una película
-        txt_id = ft.TextField(
-            label="ID a modificar",
-            value=valor_id_inicial,
-            width=300,
-            keyboard_type=ft.KeyboardType.NUMBER
-        )
-        txt_titulo = ft.TextField(label="Título", width=300)
-        txt_genero = ft.TextField(label="Género", width=300)
-        txt_duracion = ft.TextField(label="Duración (min)", width=300, keyboard_type=ft.KeyboardType.NUMBER)
-        txt_anyo = ft.TextField(label="Año", width=300, keyboard_type=ft.KeyboardType.NUMBER)
-        txt_director = ft.TextField(label="Director", width=300)
-        txt_mensaje = ft.Text(size=14)
-
-        # Función para cargar datos de la película seleccionada
-        def cargar_datos_peli(e=None):
-            try:
-                pelicula = gp.consultar_peli_por_id(conn, int(txt_id.value))
-                if pelicula:
-                    txt_titulo.value = pelicula[1]
-                    txt_genero.value = pelicula[2]
-                    txt_duracion.value = str(pelicula[3])
-                    txt_anyo.value = str(pelicula[4])
-                    txt_director.value = pelicula[5]
-                    txt_mensaje.value = "Datos cargados correctamente"
-                    txt_mensaje.color = ft.Colors.GREEN_400
-                else:
-                    txt_mensaje.value = "No se encontró ninguna película con ese ID"
-                    txt_mensaje.color = ft.Colors.RED_400
-            except ValueError:
-                txt_mensaje.value = "El ID debe ser un número entero"
-                txt_mensaje.color = ft.Colors.RED_400
-            except Exception as ex:
-                txt_mensaje.value = f"Error al cargar película: {ex}"
-                txt_mensaje.color = ft.Colors.RED_400
-            page.update()
-
-        # Función para guardar la modificación
-        def guardar_modificacion(e):
-            if not all([txt_id.value, txt_titulo.value, txt_genero.value, txt_duracion.value, txt_anyo.value, txt_director.value]):
-                txt_mensaje.value = "Completa todos los campos"
-                txt_mensaje.color = ft.Colors.RED_400
-                page.update()
-                return
-
-            try:
-                peli_actualizada = Pelicula(
-                    id=int(txt_id.value),
-                    titulo=txt_titulo.value,
-                    genero=txt_genero.value,
-                    duracion=int(txt_duracion.value),
-                    anyo_estreno=int(txt_anyo.value),
-                    director=txt_director.value
-                )
-                if gp.actualizar_peli(conn, peli_actualizada) == 0:
-                    txt_mensaje.value = f"Película con ID {txt_id.value} modificada correctamente"
-                    txt_mensaje.color = ft.Colors.GREEN_400
-            except ValueError:
-                txt_mensaje.value = "ID, Duración y Año deben ser números enteros."
-                txt_mensaje.color = ft.Colors.RED_400
-            except Exception as ex:
-                txt_mensaje.value = str(ex) or f"Error al modificar película."
-                txt_mensaje.color = ft.Colors.RED_400
-            finally:
-                page.update()
-
-        # Función para abrir el diálogo de confirmación de eliminación
-        def abrir_dialogo_eliminacion(e):
-            id_val = txt_id.value.strip()
-            if not id_val or not id_val.isdigit():
-                txt_mensaje.value = "Debes cargar los datos de una película primero."
-                txt_mensaje.color = ft.Colors.RED_400
-                page.update()
-                return
-
-            nombre_peli = txt_titulo.value if txt_titulo.value else f"ID {id_val}"
-
-            def confirmar_eliminacion(ev):
-                page.pop_dialog()
-                try:
-                    resultado = gp.eliminar_pelicula(conn, id_peli=int(id_val))
-                    if resultado > 0:
-                        mostrar_vista_ver()
-                    else:
-                        txt_mensaje.value = "No se encontró ninguna película con ese ID."
-                        txt_mensaje.color = ft.Colors.RED_400
-                        page.update()
-                except Exception as ex:
-                    txt_mensaje.value = f"Error al eliminar la película: {ex}"
-                    txt_mensaje.color = ft.Colors.RED_400
-                    page.update()
-
-            def cancelar_eliminacion(ev):
-                page.pop_dialog()
-
-            dialogo = ft.AlertDialog(
-                modal=True,
-                title=ft.Text("Confirmar eliminación"),
-                content=ft.Text(f"¿Estás seguro de que deseas eliminar la película '{nombre_peli}' (ID: {id_val})?"),
-                actions=[
-                    ft.TextButton("Cancelar", on_click=cancelar_eliminacion),
-                    ft.TextButton(
-                        "Eliminar", 
-                        on_click=confirmar_eliminacion, 
-                        style=ft.ButtonStyle(color=ft.Colors.RED_400)
-                    ),
-                ],
-                actions_alignment=ft.MainAxisAlignment.END
-            )
-            page.show_dialog(dialogo)
-
-        # Fila de botones de acción
-        fila_botones = ft.Row(
-            controls=[
-                ft.Button("Guardar cambios", on_click=guardar_modificacion, icon=ft.Icons.SAVE, color=ft.Colors.GREEN_400),
-                ft.Button("Eliminar película", on_click=abrir_dialogo_eliminacion, icon=ft.Icons.DELETE, color=ft.Colors.RED_400),
-            ],
-            spacing=10
-        )
-
-        # Añadimos los controles una sola vez
-        area_contenido.controls.extend([
-            ft.Text("Modificar Película", size=22, weight=ft.FontWeight.BOLD),
-            txt_id,
-            ft.Button("Cargar datos", on_click=cargar_datos_peli, icon=ft.Icons.DOWNLOAD),
-            txt_titulo, txt_genero, txt_duracion, txt_anyo, txt_director,
-            fila_botones,
-            txt_mensaje
-        ])
-        page.update()
-
-        # Si se abrió pasando un ID, cargamos los datos automáticamente
-        if valor_id_inicial:
-            cargar_datos_peli()
-
-    # Eliminar
-    def mostrar_vista_eliminar(e):
-        area_contenido.controls.clear()
-
-        # Controles
-        txt_titulo_eliminar = ft.TextField(label="Título o ID de la película a eliminar", width=300)
-        txt_mensaje = ft.Text(size=14)
-
-        def confirmar_eliminacion(e):
-            valor = txt_titulo_eliminar.value.strip().lower()
-            if not valor:
-                txt_mensaje.value = "Introduce un id o un título."
-                txt_mensaje.color = ft.Colors.RED_400
-                page.update()
-                return
-
-            try:
-                # Eliminar por id o por titulo
-                if valor.isdigit():
-                    resultado = gp.eliminar_pelicula(conn, id_peli=int(valor))
-                else:
-                    resultado = gp.eliminar_pelicula(conn, titulo=valor)
-
-                if resultado > 0:
-                    txt_mensaje.value = f"Película '{valor}' eliminada correctamente."
-                    txt_mensaje.color = ft.Colors.GREEN_400
-                    txt_titulo_eliminar.value = ""
-                else:
-                    txt_mensaje.value = f"No se encontró ninguna película con el criterio '{valor}'."
-                    txt_mensaje.color = ft.Colors.RED_400
-            except Exception as ex:
-                txt_mensaje.value = f"Error al eliminar la película: {ex}"
-                txt_mensaje.color = ft.Colors.RED_400
-            finally:
-                page.update()
-
-
-        area_contenido.controls.extend([
-            ft.Text("Eliminar Película", size=22, weight=ft.FontWeight.BOLD),
-            txt_titulo_eliminar,
-            ft.Button("Eliminar película", on_click=confirmar_eliminacion, icon=ft.Icons.DELETE, color=ft.Colors.RED_400),
-            txt_mensaje
-        ])
-        page.update()
-
-    def salir_app(e):
-        page.window.close()
-        sys.exit()
-
-    # Menú lateral
-    menu_lateral = ft.Container(
-        width=220,
-        padding=10,
-        bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
-        border_radius=10,
+    # Sidebar con el menú de navegación con iconos y textos
+    sidebar = th.vidrio(
+        width=240,
         content=ft.Column(
+            spacing=8,
             controls=[
-                ft.Text("Gestor DDBB", size=18, weight=ft.FontWeight.BOLD),
-                txt_info_db,
-                ft.Divider(), # Linea divisoria horizontal
-                ft.Button("Lista de películas", on_click=mostrar_vista_ver, width=180),
-                ft.Button("Insertar película", width=180, on_click=mostrar_vista_insertar),
-                ft.Button("Modificar película", width=180, on_click=mostrar_vista_modificar),
-                ft.Button("Eliminar película", width=180, on_click=mostrar_vista_eliminar),
-                ft.Divider(), # Linea divisoria horizontal
-                ft.OutlinedButton("Salir", on_click=salir_app, width=180),
+                ft.Row(
+                    controls=[
+                        ft.Icon(ft.Icons.MOVIE_FILTER, color=th.ACENTO, size=28),
+                        ft.Text("Rendercut", size=22, weight=ft.FontWeight.BOLD, color=th.TEXTO),
+                    ]
+                ),
+                ft.Container(height=14),
+                item("inicio", ft.Icons.HOME, "Inicio"),
+                item("biblioteca", ft.Icons.VIDEO_LIBRARY, "Biblioteca"),
+                item("formulario", ft.Icons.ADD_CIRCLE_OUTLINE, "Nueva película"),
             ],
-            spacing=12
+        ),
+    )
+
+    # Función que añade el sidebar y el contenido a la página
+    page.add(
+        ft.Stack(
+            expand=True,
+            controls=[
+                th.fondo(),
+                ft.Container(
+                    expand=True,
+                    padding=20,
+                    content=ft.Row(expand=True, controls=[sidebar, contenido]),
+                ),
+            ],
         )
     )
-
-    # Layout Principal - Menú a la izquierda y Contenido a la derecha
-    layout_principal = ft.Row(
-        controls=[
-            menu_lateral,
-            ft.VerticalDivider(width=1), # Línea divisoria vertical
-            area_contenido
-        ],
-        expand=True
-    )
-
-    page.add(layout_principal)
-
-    # Cargar todas las películas al iniciar
-    mostrar_vista_ver()
+    
+    # Navega a la vista de inicio al iniciar la aplicación
+    ir("inicio")
 
 if __name__ == "__main__":
     ft.run(main)
