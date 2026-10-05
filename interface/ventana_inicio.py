@@ -9,9 +9,10 @@ import gestor_peliculas as gp
 from interface import theme as th
 from interface import vistas
 
+
 # Función principal que se ejecuta al iniciar la aplicación
 def main(page: ft.Page):
-    # Conexión a la base de datos y creación de tablas
+    # Conexión a la base de datos y creación/migración de tablas
     conn = gp.establecer_conexion()
     gp.crear_tablas(conn)
 
@@ -23,28 +24,33 @@ def main(page: ft.Page):
     page.window.width = 1280
     page.window.height = 780
 
-    # Contenedor principal y diccionario para el sidebar
+    # Contenedor donde se pinta la vista activa y diccionario de botones del menú
     contenido = ft.Container(expand=True, padding=ft.Padding(left=24, top=10, right=10, bottom=10))
     nav_items = {}
 
-    # Función que pinta el sidebar
+    # Resalta en el menú lateral la sección activa
     def pintar_nav(activo):
         for clave, item in nav_items.items():
             item.bgcolor = "#334A6BFF" if clave == activo else None
             item.border = ft.Border.all(1, "#33FFFFFF") if clave == activo else None
 
-    # Función que navega entre vistas y actualiza el contenido
+    # Navega entre vistas. Para añadir una sección nueva: otro 'elif' aquí
     def ir(destino, id_peli=None):
         if destino == "inicio":
             contenido.content = vistas.vista_inicio(page, conn, ir)
         elif destino == "biblioteca":
             contenido.content = vistas.vista_biblioteca(page, conn, ir)
+        elif destino == "recomendar":
+            contenido.content = vistas.vista_recomendar(page, conn, ir)
+        elif destino == "estadisticas":
+            contenido.content = vistas.vista_estadisticas(page, conn, ir)
         else:
             contenido.content = vistas.vista_formulario(page, conn, ir, id_peli)
+        # Editar una película resalta 'Biblioteca' en el menú
         pintar_nav("biblioteca" if destino == "formulario" and id_peli else destino)
         page.update()
 
-    # Función que crea cada item del sidebar
+    # Crea cada botón del menú lateral
     def item(clave, icono, texto):
         c = ft.Container(
             on_click=lambda e: ir(clave),
@@ -57,8 +63,8 @@ def main(page: ft.Page):
         )
         nav_items[clave] = c
         return c
-    
-    # Sidebar con el menú de navegación con iconos y textos
+
+    # Menú lateral con efecto cristal
     sidebar = th.vidrio(
         width=240,
         content=ft.Column(
@@ -73,12 +79,14 @@ def main(page: ft.Page):
                 ft.Container(height=14),
                 item("inicio", ft.Icons.HOME, "Inicio"),
                 item("biblioteca", ft.Icons.VIDEO_LIBRARY, "Biblioteca"),
+                item("recomendar", ft.Icons.AUTO_AWESOME, "¿Qué veo hoy?"),
+                item("estadisticas", ft.Icons.INSIGHTS, "Estadísticas"),
                 item("formulario", ft.Icons.ADD_CIRCLE_OUTLINE, "Nueva película"),
             ],
         ),
     )
 
-    # Función que añade el sidebar y el contenido a la página
+    # Fondo (wallpaper) + menú lateral + contenido
     page.add(
         ft.Stack(
             expand=True,
@@ -92,9 +100,12 @@ def main(page: ft.Page):
             ],
         )
     )
-    
-    # Navega a la vista de inicio al iniciar la aplicación
+
+    # Vista inicial
     ir("inicio")
 
+
 if __name__ == "__main__":
-    ft.run(main)
+    # assets_dir apunta a la carpeta 'assets' de la raíz del proyecto
+    RAIZ = Path(__file__).resolve().parent.parent
+    ft.run(main, assets_dir=str(RAIZ / "assets"))
