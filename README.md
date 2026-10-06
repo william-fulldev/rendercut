@@ -1,41 +1,62 @@
-# Movie DB (Gestor de Películas) 🎬
+# Rendercut 🎬
 
-Aplicación en Python para la gestión de bases de datos de películas con SQLite y soporte de interfaz gráfica con Flet y modo consola interactivo.
+**Tu próxima película, según tus gustos y el tiempo que tienes.**
 
-## 🚀 Características
+Aplicación de escritorio para cinéfilos que permite organizar películas,
+registrar valoraciones y obtener recomendaciones personalizadas entre
+los títulos pendientes.
 
-- **Base de Datos SQLite**: Almacenamiento local de películas (`bbdd_peliculas.db`) con campos como título, género, duración, año de estreno y director.
-- **Interfaz Gráfica (Flet)**: UI moderna para ver el listado, registrar nuevas películas, consultar/modificar registros existentes y eliminar películas.
-- **Modo Consola (CLI)**: Menú interactivo por terminal para realizar operaciones CRUD completas.
-- **Generador de Datos**: Módulo para generación y pruebas de rendimiento en bases de datos SQLite.
+Desarrollada con **Python, Flet y SQLite**, con una interfaz oscura
+de estilo glassmorphism.
 
-## 📁 Estructura del Proyecto
+![Biblioteca de Rendercut](docs/screenshots/biblioteca.jpg)
 
-```text
-├── app.py                     # Punto de entrada para ejecución por terminal (CLI)
-├── bbdd_peliculas.db          # Base de datos SQLite
-├── data_generator_db.py       # Generador de datos y benchmarks
-├── gestor_peliculas.py        # Lógica CRUD y conexión a la base de datos
-├── pelicula.py                # Modelo de datos / Clase Pelicula
-├── interface/
-│   └── ventana_inicio.py      # Interfaz gráfica de usuario con Flet
-└── README.md
+## Funcionalidades
+
+- **Biblioteca:** añadir, editar y eliminar películas, buscar por título
+  y filtrar por género y estado.
+- **Diario de cine:** registrar películas pendientes, viendo o vistas,
+  con valoración de 1 a 5, fecha de visionado y notas.
+- **¿Qué veo hoy?:** recibir hasta tres recomendaciones ajustadas
+  al tiempo disponible, con una explicación de cada sugerencia.
+- **Estadísticas:** películas vistas, horas de metraje, valoración media,
+  géneros favoritos y actividad mensual.
+- **Almacenamiento local:** colección guardada en SQLite, sin necesidad
+  de una cuenta.
+
+## Recomendaciones explicables
+
+El motor utiliza reglas, no inteligencia artificial: selecciona películas
+pendientes que caben en el tiempo disponible y las ordena combinando
+afinidad por género, afinidad por director y ajuste de duración.
+
+Las afinidades se calculan a partir de tus valoraciones anteriores.
+Si aún no has valorado películas, las sugerencias se basan en la duración
+y los filtros seleccionados.
+
+> «Dura 110 minutos y tienes 120; sueles puntuar bien la ciencia ficción
+> (media 4,5/5)».
+
+## Estadísticas
+
+![Estadísticas de Rendercut](docs/screenshots/estadisticas.jpg)
+
+## Desarrollo
+
+- **Python:** modelo, validación y lógica de negocio.
+- **Flet:** interfaz gráfica y componentes visuales reutilizables.
+- **SQLite:** persistencia y migración de bases de datos existentes.
+- **pytest:** pruebas de migración, validación y recomendación.
+
+La interfaz, el acceso a datos y el recomendador están separados
+para facilitar su mantenimiento y las pruebas.
+
+```bash
+pytest -q
 ```
 
-## 🛠️ Instalación y Uso
+Proyecto personal de portfolio en desarrollo. La documentación de
+instalación y la versión empaquetada están pendientes.
 
-### Requisitos previos
-- Python 3.10+
-- `flet` (para la interfaz gráfica)
-
-### Ejecución
-
-1. **Modo Interfaz Gráfica:**
-   ```bash
-   python interface/ventana_inicio.py
-   ```
-
-2. **Modo Consola:**
-   ```bash
-   python app.py
-   ```
+**Próximas mejoras:** normalización de géneros y títulos duplicados,
+carátulas y sinopsis, e importación y exportación de la colección.
