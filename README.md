@@ -9,7 +9,7 @@ los títulos pendientes.
 Desarrollada con **Python, Flet y SQLite**, con una interfaz oscura
 de estilo glassmorphism.
 
-![Biblioteca de Rendercut](docs/screenshots/biblioteca.jpg)
+![Biblioteca de Rendercut](docs/screenshots/biblioteca.png)
 
 ## Funcionalidades
 
@@ -39,7 +39,7 @@ y los filtros seleccionados.
 
 ## Estadísticas
 
-![Estadísticas de Rendercut](docs/screenshots/estadisticas.jpg)
+![Estadísticas de Rendercut](docs/screenshots/estadisticas.png)
 
 ## Desarrollo
 
