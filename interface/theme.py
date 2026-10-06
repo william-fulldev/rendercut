@@ -88,7 +88,7 @@ def campo(label, **kw):
     return ft.TextField(
         label=label,
         filled=True,
-        bgcolor="#20FFFFFF",
+        bgcolor="#40FFFFFF",
         border_radius=14,
         border_color="#33FFFFFF",
         focused_border_color=ACENTO,
