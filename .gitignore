@@ -14,3 +14,5 @@ env/
 venv/
 .idea/
 .vscode/
+
+bbdd_peliculas.db 
