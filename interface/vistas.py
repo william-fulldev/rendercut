@@ -271,6 +271,11 @@ def vista_formulario(page, conn, ir, id_peli=None):
     )
     mensaje = ft.Text(size=13)
 
+    # NUEVO: texto chiquito que me avisa de cómo se va a guardar el género que escribo
+    aviso_genero = ft.Text(size=12, color=th.TEXTO_SUAVE)
+    # NUEVO: fila donde van los chips con los géneros que ya tengo en la biblioteca
+    chips_genero = ft.Row(wrap=True, spacing=8)
+
     fila_estados = ft.Row(spacing=8)
     fila_estrellas = ft.Row(spacing=2)
     # Este bloque (valoración + fecha) solo se ve si la película está 'vista'
@@ -278,6 +283,47 @@ def vista_formulario(page, conn, ir, id_peli=None):
         spacing=12,
         controls=[ft.Text("Tu valoración", color=th.TEXTO_SUAVE, size=13), fila_estrellas, txt_fecha],
     )
+
+    # NUEVO: calcula el texto del aviso mirando lo que hay escrito ahora mismo en el campo género
+    def pintar_aviso_genero():
+        # NUEVO: cojo lo escrito y le quito espacios de los lados (si es None, uso texto vacío)
+        escrito = (txt_genero.value or "").strip()
+        # NUEVO: le pregunto a la función de la 4.1 cómo debería quedar escrito
+        bueno = gp.normalizar_genero(escrito)
+        # NUEVO: solo aviso si hay algo escrito y se va a cambiar (si ya está bien, no molesto)
+        if escrito and bueno and bueno != escrito:
+            # NUEVO: este es el texto que verás debajo del campo
+            aviso_genero.value = f"Se guardará como: {bueno}"
+        else:
+            # NUEVO: si no hay nada que corregir, dejo el aviso vacío
+            aviso_genero.value = ""
+
+    # NUEVO: esto se ejecuta al pulsar un chip de género
+    def elegir_genero(g):
+        # NUEVO: meto el género elegido en el campo de texto
+        txt_genero.value = g
+        # NUEVO: recalculo el aviso (con un género ya bueno se queda vacío)
+        pintar_aviso_genero()
+        # NUEVO: refresco la pantalla para que se vea el cambio
+        page.update()
+
+    # NUEVO: esto se ejecuta cada vez que escribo una letra en el campo género
+    def al_escribir_genero(e):
+        # NUEVO: recalculo el aviso con lo que llevo escrito
+        pintar_aviso_genero()
+        # NUEVO: refresco para que el aviso aparezca o desaparezca al momento
+        page.update()
+
+    # NUEVO: le digo al campo género que llame a la función de arriba cuando cambie su texto
+    txt_genero.on_change = al_escribir_genero
+    # NUEVO: saco los géneros distintos que ya hay guardados, ordenados de la A a la Z
+    generos_existentes = sorted({p.genero for p in gp.listar_peliculas(conn)})
+    # NUEVO: creo un chip por cada género; al pulsarlo llama a elegir_genero con ese género
+    chips_genero.controls = [
+        th.etiqueta(g, False, lambda e, g=g: elegir_genero(g)) for g in generos_existentes
+    ]
+    # NUEVO: calculo el aviso una vez al abrir (por si estoy editando una peli con el género mal escrito)
+    pintar_aviso_genero()
 
     def elegir_estado(valor):
         sel["estado"] = valor
@@ -351,6 +397,8 @@ def vista_formulario(page, conn, ir, id_peli=None):
                     c.value = ""
                 sel["estado"], sel["valoracion"] = "pendiente", None
                 pintar_estado()
+                # NUEVO: al limpiar el formulario, también limpio el aviso del género
+                aviso_genero.value = ""
                 avisar(f"'{p.titulo}' guardada correctamente.", th.OK)
         except ValueError as ex:
             avisar(str(ex), th.ERROR)
@@ -390,6 +438,10 @@ def vista_formulario(page, conn, ir, id_peli=None):
                     controls=[
                         txt_titulo,
                         txt_genero,
+                        # NUEVO: justo debajo del género van el aviso y los chips con los que ya usas
+                        aviso_genero,
+                        ft.Text("Géneros que ya usas:", color=th.TEXTO_SUAVE, size=12),
+                        chips_genero,
                         ft.Row(controls=[txt_duracion, txt_anyo]),
                         txt_director,
                         ft.Text("Estado", color=th.TEXTO_SUAVE, size=13),
@@ -401,93 +453,6 @@ def vista_formulario(page, conn, ir, id_peli=None):
                     ],
                 )
             ),
-        ],
-    )
-
-# VISTA: ¿QUÉ VEO HOY? (usa recomendador.py)
-
-def vista_recomendar(page, conn, ir):
-    sel = {"genero": None}
-    txt_minutos = th.campo("Minutos disponibles", width=200, value="120", keyboard_type=ft.KeyboardType.NUMBER)
-    chips_tiempo = ft.Row(spacing=8)
-    chips_genero = ft.Row(wrap=True, spacing=8)
-    resultados = ft.Column(spacing=14)
-
-    def tarjeta(p, motivo, posicion):
-        """Tarjeta de una recomendación con su explicación."""
-        return th.vidrio(
-            on_click=lambda e, i=p.id: ir("formulario", i),
-            ink=True,
-            content=ft.Column(
-                spacing=6,
-                controls=[
-                    ft.Row(
-                        controls=[
-                            ft.Text(f"#{posicion}", color=th.TEXTO_SUAVE, weight=ft.FontWeight.BOLD),
-                            ft.Text(p.titulo, size=20, weight=ft.FontWeight.BOLD, color=th.TEXTO, expand=True),
-                            th.etiqueta(p.genero),
-                        ]
-                    ),
-                    ft.Text(f"{p.director} · {p.anyo_estreno} · {p.duracion} min", size=12, color=th.TEXTO_SUAVE),
-                    ft.Text(f"Por qué: {motivo}.", color=th.TEXTO, size=13),
-                ],
-            ),
-        )
-
-    def poner_minutos(m):
-        txt_minutos.value = str(m)
-        refrescar()
-
-    def poner_genero(g):
-        sel["genero"] = g
-        refrescar()
-
-    def construir():
-        """Calcula recomendaciones y reconstruye chips y resultados (sin page.update)."""
-        pelis = gp.listar_peliculas(conn)
-        generos = sorted({p.genero for p in pelis if p.estado == "pendiente"})
-        if sel["genero"] not in generos:
-            sel["genero"] = None
-
-        chips_tiempo.controls = [
-            th.etiqueta(f"{m} min", txt_minutos.value == str(m), lambda e, m=m: poner_minutos(m))
-            for m in (90, 120, 150, 180)
-        ]
-        chips_genero.controls = [
-            th.etiqueta("Cualquier género", sel["genero"] is None, lambda e: poner_genero(None))
-        ] + [
-            th.etiqueta(g, sel["genero"] == g, lambda e, g=g: poner_genero(g)) for g in generos
-        ]
-
-        try:
-            minutos = int(txt_minutos.value)
-        except ValueError:
-            resultados.controls = [ft.Text("Escribe los minutos como número entero.", color=th.ERROR)]
-            return
-        recs = recomendar(pelis, minutos, sel["genero"], n=3)
-        if recs:
-            resultados.controls = [tarjeta(p, m, i) for i, (p, m) in enumerate(recs, start=1)]
-        else:
-            resultados.controls = [
-                ft.Text("No hay películas pendientes que quepan en ese tiempo.", color=th.TEXTO_SUAVE)
-            ]
-
-    def refrescar(e=None):
-        construir()
-        page.update()
-
-    txt_minutos.on_change = refrescar
-    construir()
-
-    return ft.Column(
-        expand=True,
-        scroll=ft.ScrollMode.AUTO,
-        spacing=18,
-        controls=[
-            _titulo("¿Qué veo hoy?", "Sugerencias entre tus pendientes según tu tiempo y tus gustos"),
-            ft.Row(controls=[txt_minutos, chips_tiempo]),
-            chips_genero,
-            resultados,
         ],
     )
 
