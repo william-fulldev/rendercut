@@ -1,14 +1,16 @@
 import sys
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).resolve().parent.parent))
+# Añadimos la raíz del proyecto y la carpeta back_logic a sys.path
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT))
+sys.path.append(str(ROOT / "back_logic"))
+sys.path.append(str(ROOT / "interface"))
 
 import flet as ft
-
 import gestor_peliculas as gp
-from interface import theme as th
-from interface import vistas
-
+import theme as th
+import vistas
 
 # Función principal que se ejecuta al iniciar la aplicación
 def main(page: ft.Page):

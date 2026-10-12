@@ -1,6 +1,7 @@
 import sqlite3
 from pathlib import Path
 from pelicula import Pelicula
+from normalizacion import normalizar_genero, buscar_duplicado
 
 
 # CONFIGURACIÓN
@@ -65,6 +66,18 @@ def crear_tablas(conn):
             "WHERE estado NOT IN ('pendiente', 'viendo', 'vista')"
         )
 
+        # sacamos la lista de géneros distintos que hay ahora mismo en la tabla (sin repetir)
+        generos_guardados = [fila[0] for fila in conn.execute("SELECT DISTINCT genero FROM peliculas")]
+        # recorremos cada género tal y como está escrito en la base de datos
+        for viejo in generos_guardados:
+            # calcula cómo debería estar escrito ("ciencia ficcion" - "Ciencia ficción")
+            bueno = normalizar_genero(viejo)
+            # solo toca la base si hay algo que arreglar (y si el resultado no ha quedado vacío)
+            if bueno and bueno != viejo:
+                # cambia todas las películas que tenían el género mal escrito de una sola vez
+                conn.execute("UPDATE peliculas SET genero = ? WHERE genero = ?", (bueno, viejo))
+
+
 # ESCRITURA: CREAR, ACTUALIZAR Y ELIMINAR
 
 def _valores(p: Pelicula):
@@ -85,9 +98,26 @@ def _valores(p: Pelicula):
     )
 
 
+# función auxiliar que prepara la película ANTES de guardarla (la usan crear y actualizar)
+def _preparar(conn, pelicula: Pelicula):
+    # arreglamos el género primero ("ciencia ficcion" -> "Ciencia ficción") y lo deja ya corregido en la propia película
+    pelicula.genero = normalizar_genero(pelicula.genero)
+    # se valida después, así si el género quedó vacío saltará el error de siempre
+    pelicula.validar()
+    # se traen todas las películas guardadas para compararlas
+    guardadas = listar_peliculas(conn)
+    # buscamos una igual; se pasa el id para que al EDITAR una peli no se compare consigo misma
+    repetida = buscar_duplicado(guardadas, pelicula.titulo, pelicula.anyo_estreno, pelicula.id)
+    # si salió alguna, frena y avisa de cuál es
+    if repetida:
+        # este mensaje es el que se verá en rojo en el formulario de la app
+        raise ValueError(f"Ya tienes '{repetida.titulo}' ({repetida.anyo_estreno}) en tu biblioteca.")
+
+
 def create_movie(conn, pelicula: Pelicula):
     """Valida e inserta una película nueva."""
-    pelicula.validar()
+    # antes aquí solo estaba pelicula.validar(); ahora _preparar hace eso + género + duplicados
+    _preparar(conn, pelicula)
     with conn:
         conn.execute(
             '''INSERT INTO peliculas (titulo, genero, duracion, anyo_estreno, director,
@@ -98,7 +128,8 @@ def create_movie(conn, pelicula: Pelicula):
 
 def actualizar_peli(conn: sqlite3.Connection, pelicula: Pelicula) -> int:
     """Valida y actualiza una película. Devuelve cuántas filas cambió (0 = ID inexistente)."""
-    pelicula.validar()
+    # mismo cambio que arriba, así editar también corrige el género y vigila duplicados
+    _preparar(conn, pelicula)
     with conn:
         cur = conn.execute(
             '''UPDATE peliculas SET titulo=?, genero=?, duracion=?, anyo_estreno=?, director=?,
@@ -121,7 +152,7 @@ def eliminar_pelicula(conn: sqlite3.Connection, titulo: str = None, id_peli: int
         return cursor.rowcount
 
 
-# LECTURA
+# LECTURA + LIMPIEZA DE CÓDIGO
 
 def consultar_peli(conn: sqlite3.Connection, titulo: str) -> list:
     """Busca por título (contiene el texto). Devuelve tuplas de 6 columnas.
@@ -195,22 +226,28 @@ def menu_principal(conn: sqlite3.Connection):
     while True:
         option = input("\n¿Quieres añadir(1), eliminar(2), consultar(3) o actualizar(4) una película? (otra tecla = salir): ")
 
-        # Añadir
+        # 1) Añadir
         if option == "1":
             pelicula = pedir_pelicula()
-            create_movie(conn, pelicula)
-            print(f"\n✅ Película '{pelicula.titulo}' insertada correctamente")
+            # create_movie ahora puede soltar el error de "ya existe", así que lo envuelve en try
+            try:
+                create_movie(conn, pelicula)
+                print(f"\n✅ Película '{pelicula.titulo}' insertada correctamente")
+            # si salta el error, lo muestra tal cual en vez de que la consola pete
+            except ValueError as ex:
+                print(f"\n⚠️ {ex}")
 
-        # Eliminar por ID o por título
+        # 2) Eliminar por ID o por título
         elif option == "2":
             criterio = input("\n¿Eliminar por ID (1) o por título (2)?: ")
             if criterio == "1":
                 filas = eliminar_pelicula(conn, id_peli=pedir_entero("ID de la película: "))
             else:
                 filas = eliminar_pelicula(conn, titulo=input("Título de la película: "))
-            print("\n🗑️ Película eliminada correctamente" if filas > 0 else "\n⚠️ No se encontró ninguna película para eliminar")
+            print("\n🗑️ Película eliminada correctamente" if filas > 0 
+                else "\n⚠️ No se encontró ninguna película para eliminar")
 
-        # Consultar e imprimir resultados
+        # 3) Consultar e imprimir resultados
         elif option == "3":
             titulo = input("\nTítulo a consultar: ")
             resultados = consultar_peli(conn, titulo)
@@ -220,13 +257,18 @@ def menu_principal(conn: sqlite3.Connection):
             else:
                 print("\n⚠️ No se encontraron películas.")
 
-        # Actualizar
+        # 4) Actualizar
         elif option == "4":
             pelicula = pedir_pelicula(pedir_entero("\nID de la película a actualizar: "))
-            if actualizar_peli(conn, pelicula) > 0:
-                print(f"\n✅ Película '{pelicula.titulo}' actualizada correctamente")
-            else:
-                print("\n⚠️ No existe ninguna película con ese ID")
+            # mismo caso que en añadir, actualizar_peli también puede soltar el error de duplicado
+            try:
+                if actualizar_peli(conn, pelicula) > 0:
+                    print(f"\n✅ Película '{pelicula.titulo}' actualizada correctamente")
+                else:
+                    print("\n⚠️ No existe ninguna película con ese ID")
+            # lo mismo, muestra el aviso y sigue
+            except ValueError as ex:
+                print(f"\n⚠️ {ex}")
 
         # Cualquier otra tecla: salir
         else:

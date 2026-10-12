@@ -1,12 +1,25 @@
+import sys
+from pathlib import Path
+
+# Aseguramos que la raíz del proyecto y back_logic estén en sys.path
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.append(str(ROOT))
+if str(ROOT / "back_logic") not in sys.path:
+    sys.path.append(str(ROOT / "back_logic"))
+if str(ROOT / "interface") not in sys.path:
+    sys.path.append(str(ROOT / "interface"))
+
 from collections import Counter
 from datetime import date
 
 import flet as ft
-
 import gestor_peliculas as gp
+# pyrefly: ignore [missing-import]
 from pelicula import Pelicula, ESTADOS
+# pyrefly: ignore [missing-import]
 from recomendador import recomendar
-from interface import theme as th
+import theme as th
 
 
 # CONSTANTES Y UTILIDADES COMUNES
@@ -573,3 +586,8 @@ def vista_estadisticas(page, conn, ir):
             ),
         ],
     )
+
+
+if __name__ == "__main__":
+    from ventana_inicio import main
+    ft.run(main, assets_dir=str(ROOT / "assets"))
