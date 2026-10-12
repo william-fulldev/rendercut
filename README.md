@@ -21,6 +21,10 @@ de estilo glassmorphism.
   al tiempo disponible, con una explicación de cada sugerencia.
 - **Estadísticas:** películas vistas, horas de metraje, valoración media,
   géneros favoritos y actividad mensual.
+- **Datos limpios:** los géneros se normalizan al guardar y la app avisa
+  si intentas añadir una película que ya tienes.
+- **Carátulas y sinopsis:** se pueden traer desde TMDB, de forma opcional,
+  para una película o para toda la biblioteca.
 - **Almacenamiento local:** colección guardada en SQLite, sin necesidad
   de una cuenta.
 
@@ -46,17 +50,44 @@ y los filtros seleccionados.
 - **Python:** modelo, validación y lógica de negocio.
 - **Flet:** interfaz gráfica y componentes visuales reutilizables.
 - **SQLite:** persistencia y migración de bases de datos existentes.
-- **pytest:** pruebas de migración, validación y recomendación.
+- **TMDB API:** carátulas y sinopsis, con la clave guardada como variable
+  de entorno (`TMDB_TOKEN`), nunca en el código.
+- **pytest:** pruebas de migración, validación, normalización,
+  duplicados y recomendación.
 
-La interfaz, el acceso a datos y el recomendador están separados
+```text
+back_logic/
+├── pelicula.py          # Modelo y validación
+├── gestor_peliculas.py  # Acceso a SQLite y migraciones
+├── normalizacion.py     # Géneros y detección de duplicados
+├── recomendador.py      # Motor de recomendación
+└── tmdb.py              # Consulta de carátulas y sinopsis
+interface/
+├── ventana_inicio.py    # Arranque y navegación
+├── vistas.py            # Pantallas
+└── theme.py             # Estilos reutilizables
+```
+
+La interfaz, el acceso a datos y las consultas a internet están separados
 para facilitar su mantenimiento y las pruebas.
 
 ```bash
-pytest -q
+python -m pytest -q
 ```
 
-Proyecto personal de portfolio en desarrollo. La documentación de
-instalación y la versión empaquetada están pendientes.
+## Créditos
 
-**Próximas mejoras:** normalización de géneros y títulos duplicados,
-carátulas y sinopsis, e importación y exportación de la colección.
+Las carátulas y sinopsis, cuando se usan, proceden de
+[TMDB](https://www.themoviedb.org).
+
+This product uses TMDB and the TMDB APIs but is not endorsed, certified,
+or otherwise approved by TMDB.
+
+## Estado del proyecto
+
+Proyecto personal de portfolio en desarrollo. Las capturas muestran una
+colección con datos de ejemplo. La documentación de instalación y la
+versión empaquetada están pendientes.
+
+**Próximas mejoras:** importación y exportación de la colección y una
+sección «Acerca de» dentro de la aplicación.
